@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 
@@ -7,6 +9,7 @@ class Task:
     duration_minutes: int
     priority: str  # "low", "medium", "high"
     reason: str = ""
+    pet: Pet | None = None  # reference back to owning pet
 
     def get_priority_score(self) -> int:
         pass
@@ -16,7 +19,7 @@ class Task:
 class Pet:
     name: str
     species: str
-    tasks: list = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
 
     def add_task(self, task: Task) -> None:
         pass
@@ -26,9 +29,12 @@ class Pet:
 class Owner:
     name: str
     available_minutes: int
-    pets: list = field(default_factory=list)
+    pets: list[Pet] = field(default_factory=list)
 
     def add_pet(self, pet: Pet) -> None:
+        pass
+
+    def get_all_tasks(self) -> list[Task]:
         pass
 
 
@@ -41,9 +47,9 @@ class ScheduledTask:
 
 
 class Scheduler:
-    def __init__(self, owner: Owner, time_budget: int):
+    def __init__(self, owner: Owner):
         self.owner = owner
-        self.time_budget = time_budget
+        self.time_budget: int = owner.available_minutes  # derived from owner
         self.scheduled_tasks: list[ScheduledTask] = []
 
     def build_plan(self) -> list[ScheduledTask]:

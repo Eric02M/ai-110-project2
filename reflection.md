@@ -7,10 +7,58 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
-**b. Design changes**
+- three core actions
+ - task
+ - pet
+ - manage pet care tasks
+
+**b. Design changes** 
+1. Pet - store and manage pet information
+Attributes:
+* name
+* age
+* breed
+* weight
+* medical_info
+Methods:
+* update_info()
+* display_info()
+
+2. Task - represents care activities
+
+Attributes:
+* task_type (feeding, grooming, walking)
+* time
+* status (pending/completed)
+* pet (reference to Pet)
+Methods:
+* mark_complete()
+* schedule()
+* reschedule()
+
+3. Schedule / Reminder System - assigns time
+Attributes:
+* list_of_tasks
+* date
+* notifications
+Methods:
+* get_today_tasks()
+* send_reminder()
+* add_task()
+
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+
+**Changes made based on AI skeleton review:**
+
+1. **Added `pet: Pet | None` to `Task`** — The original design had no way to know which pet a task belonged to once tasks were flattened for scheduling. With multiple pets, the schedule output was ambiguous. Adding a back-reference to `Pet` fixes this.
+
+2. **Typed `Pet.tasks` as `list[Task]`** — The original used a bare `list`, which gives no type safety. Changed to `list[Task]` so tools and future code know what's in the list.
+
+3. **Added `Owner.get_all_tasks() -> list[Task]`** — The `Scheduler` needs to collect tasks across all of an owner's pets. Without this method, that traversal logic would have to live inside `Scheduler`, mixing concerns. A dedicated helper on `Owner` is cleaner.
+
+4. **Removed `time_budget` parameter from `Scheduler.__init__`** — `Owner.available_minutes` and `Scheduler.time_budget` were redundant. Now `Scheduler` derives `time_budget` directly from `owner.available_minutes`, eliminating the risk of them getting out of sync.
 
 ---
 
