@@ -12,6 +12,17 @@ A busy pet owner needs help staying consistent with pet care. They want an assis
 
 Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
 
+## Features
+
+- **Priority-first scheduling** — Tasks are sorted high → medium → low before being added to the plan. Shorter duration breaks ties so more tasks fit within the available time window.
+- **While-loop time budget enforcement** — `build_plan()` walks the sorted task list with a `while` loop, stopping naturally when time runs out or all tasks are evaluated. Two named booleans (`fits_in_budget`, `no_conflict`) keep the guard conditions readable.
+- **Conflict detection** — `detect_conflicts()` flags overlapping time slots using the condition `a.start < b.end AND b.start < a.end`. A private `_would_conflict()` applies the same check inside `build_plan()` before each insertion, preventing conflicts from being scheduled in the first place.
+- **Sorting by time** — `sort_by_time()` returns the scheduled plan in ascending `HH:MM` start-time order for clean display in the UI table.
+- **Daily and weekly recurrence** — `Task.next_occurrence()` advances the due date by `timedelta(days=1)` or `timedelta(weeks=1)`. `Scheduler.mark_task_complete()` calls it automatically and registers the next occurrence with the pet.
+- **Completion filtering** — `filter_tasks(completed=False)` returns only incomplete scheduled tasks; an optional `pet_name` argument narrows results to a specific pet.
+- **Plain-English reasoning** — Every scheduled task includes a `reasoning` string explaining the pet name, priority score (out of 3), and minutes remaining when the task was added.
+- **Owner-level task aggregation** — `Owner.get_all_tasks()` flattens pending tasks across all registered pets into a single list for the scheduler to consume.
+
 ## What you will build
 
 Your final app should:
