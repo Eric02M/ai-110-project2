@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
 
 @dataclass
@@ -11,6 +12,8 @@ class Task:
     reason: str = ""
     pet: Pet | None = None
     completed: bool = False
+    frequency: str = "once"  # "once", "daily", or "weekly"
+    due_date: date | None = None
 
     def get_priority_score(self) -> int:
         """Returns a numeric score so tasks can be sorted: high=3, medium=2, low=1."""
@@ -20,10 +23,42 @@ class Task:
         """Mark this task as completed so it is excluded from future scheduling."""
         self.completed = True
 
+    def next_occurrence(self) -> Task | None:
+        """Return a new Task for the next occurrence, or None if frequency is 'once'.
+
+        Uses timedelta to advance the due date:
+          - 'daily'  -> due_date + timedelta(days=1)
+          - 'weekly' -> due_date + timedelta(weeks=1)
+        """
+        if self.frequency == "once":
+            return None
+
+        base = self.due_date if self.due_date is not None else date.today()
+
+        if self.frequency == "daily":
+            next_due = base + timedelta(days=1)
+        elif self.frequency == "weekly":
+            next_due = base + timedelta(weeks=1)
+        else:
+            return None
+
+        return Task(
+            title=self.title,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            reason=self.reason,
+            pet=self.pet,
+            completed=False,
+            frequency=self.frequency,
+            due_date=next_due,
+        )
+
     def __str__(self) -> str:
         """Return a short human-readable description of the task."""
         pet_label = f" [{self.pet.name}]" if self.pet else ""
-        return f"{self.title}{pet_label} ({self.duration_minutes}min, {self.priority} priority)"
+        freq_label = f", {self.frequency}" if self.frequency != "once" else ""
+        due_label = f", due {self.due_date}" if self.due_date else ""
+        return f"{self.title}{pet_label} ({self.duration_minutes}min, {self.priority} priority{freq_label}{due_label})"
 
 
 @dataclass
@@ -93,39 +128,93 @@ class Scheduler:
         self.scheduled_tasks: list[ScheduledTask] = []
 
     def build_plan(self) -> list[ScheduledTask]:
-        """Sort pending tasks by priority and greedily schedule those that fit within available time."""
-        self.scheduled_tasks = []
-        all_tasks = self.owner.get_all_tasks()
+        """Sort pending tasks by priority and schedule them until time runs out.
 
-        # Sort by priority descending, then by duration ascending as a tiebreaker
+        Tasks are sorted highest-to-lowest priority (with shorter duration as a
+        tiebreaker). A while loop walks the sorted list and adds each task that
+        still fits within the owner's available time. The loop exits naturally
+        when all tasks have been checked or the time budget is exhausted.
+
+        Returns:
+            A list of ScheduledTask objects in the order they were scheduled,
+            each with a start/end minute and a plain-English reasoning string.
+        """
+        self.scheduled_tasks = []
+
         sorted_tasks = sorted(
-            all_tasks,
+            self.owner.get_all_tasks(),
             key=lambda t: (-t.get_priority_score(), t.duration_minutes),
         )
 
         time_used = 0
-        for task in sorted_tasks:
-            if time_used + task.duration_minutes > self.time_budget:
-                continue  # skip tasks that no longer fit
+        index = 0
+        while index < len(sorted_tasks) and time_used < self.time_budget:
+            task = sorted_tasks[index]
 
-            reasoning = (
-                f"Priority '{task.priority}' (score {task.get_priority_score()}/3). "
-                f"Fits within remaining time "
-                f"({self.time_budget - time_used} min left)."
-            )
-            if task.pet:
-                reasoning = f"For {task.pet.name}. " + reasoning
+            if time_used + task.duration_minutes <= self.time_budget:
+                pet_prefix = f"For {task.pet.name}. " if task.pet else ""
+                reasoning = (
+                    f"{pet_prefix}Priority '{task.priority}' "
+                    f"(score {task.get_priority_score()}/3). "
+                    f"Fits within remaining time "
+                    f"({self.time_budget - time_used} min left)."
+                )
+                self.scheduled_tasks.append(ScheduledTask(
+                    task=task,
+                    start_minute=time_used,
+                    end_minute=time_used + task.duration_minutes,
+                    reasoning=reasoning,
+                ))
+                time_used += task.duration_minutes
 
-            scheduled = ScheduledTask(
-                task=task,
-                start_minute=time_used,
-                end_minute=time_used + task.duration_minutes,
-                reasoning=reasoning,
-            )
-            self.scheduled_tasks.append(scheduled)
-            time_used += task.duration_minutes
+            index += 1
 
         return self.scheduled_tasks
+
+    def sort_by_time(self) -> list[ScheduledTask]:
+        """Return scheduled tasks sorted by start time using HH:MM string format as the sort key."""
+        def to_hhmm(st: ScheduledTask) -> str:
+            h, m = divmod(st.start_minute, 60)
+            return f"{h:02d}:{m:02d}"
+
+        return sorted(self.scheduled_tasks, key=lambda st: to_hhmm(st))
+
+    def filter_tasks(
+        self,
+        *,
+        completed: bool | None = None,
+        pet_name: str | None = None,
+    ) -> list[ScheduledTask]:
+        """Filter scheduled tasks by completion status and/or pet name.
+
+        Args:
+            completed: If True, return only completed tasks. If False, only incomplete.
+                       If None, completion status is not filtered.
+            pet_name:  If provided, return only tasks belonging to the named pet.
+        """
+        results = self.scheduled_tasks
+
+        if completed is not None:
+            results = [st for st in results if st.task.completed == completed]
+
+        if pet_name is not None:
+            results = [
+                st for st in results
+                if st.task.pet is not None and st.task.pet.name.lower() == pet_name.lower()
+            ]
+
+        return results
+
+    def mark_task_complete(self, task: Task) -> Task | None:
+        """Mark a task complete and, if it recurs, register the next occurrence with its pet.
+
+        Returns the newly created next-occurrence Task, or None for one-time tasks.
+        """
+        task.mark_complete()
+        next_task = task.next_occurrence()
+        if next_task is not None and task.pet is not None:
+            task.pet.add_task(next_task)
+        return next_task
 
     def explain_plan(self) -> str:
         """Return a human-readable summary of the scheduled plan."""

@@ -71,8 +71,13 @@ Methods:
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+**Tradeoff: readability over maximum time utilization**
+
+`build_plan()` uses a `while` loop that walks through tasks in priority order and schedules each one if it fits within the remaining time budget. The loop stops naturally when either all tasks have been checked or time runs out — no `break` or `continue` needed.
+
+This means a large task could "use up" the budget even if a smaller, lower-priority task could have filled the remaining minutes more efficiently. The scheduler does not search for the best combination of tasks to fill time — it just takes the highest-priority ones that fit, in order.
+
+**Why this tradeoff is reasonable:** Pet care is driven by urgency and importance, not by squeezing every minute of the day. A vet-prescribed medication should always run before a grooming session, regardless of whether swapping them would "use time better." The `while` loop makes that priority logic easy to read and trace, which matters more here than optimal time packing.
 
 ---
 
