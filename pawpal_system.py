@@ -150,8 +150,12 @@ class Scheduler:
         index = 0
         while index < len(sorted_tasks) and time_used < self.time_budget:
             task = sorted_tasks[index]
+            new_end = time_used + task.duration_minutes
 
-            if time_used + task.duration_minutes <= self.time_budget:
+            fits_in_budget = new_end <= self.time_budget
+            no_conflict = not self._would_conflict(time_used, new_end)
+
+            if fits_in_budget and no_conflict:
                 pet_prefix = f"For {task.pet.name}. " if task.pet else ""
                 reasoning = (
                     f"{pet_prefix}Priority '{task.priority}' "
@@ -162,7 +166,7 @@ class Scheduler:
                 self.scheduled_tasks.append(ScheduledTask(
                     task=task,
                     start_minute=time_used,
-                    end_minute=time_used + task.duration_minutes,
+                    end_minute=new_end,
                     reasoning=reasoning,
                 ))
                 time_used += task.duration_minutes
@@ -170,6 +174,17 @@ class Scheduler:
             index += 1
 
         return self.scheduled_tasks
+
+    def _would_conflict(self, start: int, end: int) -> bool:
+        """Return True if a proposed [start, end) slot overlaps any already-scheduled task.
+
+        Uses the same overlap condition as detect_conflicts:
+            new task starts before existing ends  AND  existing starts before new task ends
+        """
+        return any(
+            start < st.end_minute and st.start_minute < end
+            for st in self.scheduled_tasks
+        )
 
     def sort_by_time(self) -> list[ScheduledTask]:
         """Return scheduled tasks sorted by start time using HH:MM string format as the sort key."""
@@ -204,6 +219,25 @@ class Scheduler:
             ]
 
         return results
+
+    def detect_conflicts(self) -> list[tuple[ScheduledTask, ScheduledTask]]:
+        """Check scheduled tasks for overlapping time slots.
+
+        Two tasks conflict when one starts before the other has finished.
+        The overlap condition is:  a.start < b.end  AND  b.start < a.end
+
+        Returns:
+            A list of (task_a, task_b) tuples for every conflicting pair found.
+            Returns an empty list when there are no conflicts.
+        """
+        conflicts = []
+        tasks = self.scheduled_tasks
+        for i in range(len(tasks)):
+            for j in range(i + 1, len(tasks)):
+                a, b = tasks[i], tasks[j]
+                if a.start_minute < b.end_minute and b.start_minute < a.end_minute:
+                    conflicts.append((a, b))
+        return conflicts
 
     def mark_task_complete(self, task: Task) -> Task | None:
         """Mark a task complete and, if it recurs, register the next occurrence with its pet.

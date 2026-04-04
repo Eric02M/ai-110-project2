@@ -35,6 +35,34 @@ PawPal+ goes beyond a simple task list with three scheduling improvements:
 **Plain-English reasoning**
 Every scheduled task includes a `reasoning` string explaining why it was chosen (priority score, pet it belongs to, and minutes remaining when it was added), so the plan is transparent, not just a list of times.
 
+## Testing PawPal+
+
+### Run the tests
+
+```bash
+python -m pytest test_pawpaw.py -v
+```
+
+### What the tests cover
+
+36 tests across 7 areas:
+
+| Area | What is verified |
+|---|---|
+| **Task addition** | Tasks are stored in the pet, back-reference to pet is set, multiple tasks persist |
+| **Task completion** | `mark_complete()` sets the flag, completed tasks are excluded from pending and from the scheduled plan |
+| **Priority sorting** | High priority is scheduled before medium, shorter tasks win tiebreakers, `get_priority_score` returns correct values |
+| **Time budget** | Exact-fit tasks are scheduled, tasks 1 minute over budget are skipped, zero budget and empty task lists produce no crashes |
+| **Recurring tasks** | `"once"` produces no next task, `"daily"` advances due date by 1 day, `"weekly"` advances by 7 days, next task is auto-registered with the pet |
+| **Filter and sort** | `filter_tasks` by completion and pet name, `sort_by_time` returns ascending order |
+| **Conflict detection** | Normal plans have no conflicts, overlapping slots are flagged, back-to-back slots are not flagged |
+
+### Confidence level
+
+★★★★☆ (4 / 5)
+
+All 36 tests pass. Core behaviors — scheduling, priority ordering, time budget enforcement, recurring tasks, and conflict detection — are well covered. The one gap is that conflict detection inside `build_plan` can never actually fire in the current sequential design, so the guard has not been proven against a real runtime scenario. Confidence would reach 5 stars once tasks support fixed start times and a true scheduling conflict can be triggered end-to-end.
+
 ## Getting started
 
 ### Setup
